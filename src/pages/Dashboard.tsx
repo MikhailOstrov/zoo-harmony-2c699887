@@ -2,14 +2,34 @@ import { MainLayout } from '@/components/layout/MainLayout';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { RecentActivity } from '@/components/dashboard/RecentActivity';
 import { QuickActions } from '@/components/dashboard/QuickActions';
-import { mockPets, mockEmployees, mockDietTypes, mockMedicalChecks } from '@/data/mockData';
-import { PawPrint, Users, UtensilsCrossed, Stethoscope, Heart, AlertTriangle } from 'lucide-react';
+import { usePets } from '@/hooks/use-pets';
+import { useEmployees } from '@/hooks/use-employees';
+import { useDietTypes } from '@/hooks/use-diets';
+import { useMedicalChecks } from '@/hooks/use-medical';
+import { PawPrint, Users, UtensilsCrossed, Stethoscope, AlertTriangle, Loader2 } from 'lucide-react';
 
 export default function Dashboard() {
-  const healthyPets = mockPets.filter((p) => p.healthStatus === 'Healthy').length;
-  const needsAttention = mockPets.filter((p) => ['Sick', 'Critical', 'Recovering'].includes(p.healthStatus)).length;
-  const vets = mockEmployees.filter((e) => e.role === 'Veterinarian').length;
-  const keepers = mockEmployees.filter((e) => e.role === 'Keeper').length;
+  const { data: pets = [], isLoading: loadingPets } = usePets();
+  const { data: employees = [], isLoading: loadingEmployees } = useEmployees();
+  const { data: dietTypes = [], isLoading: loadingDietTypes } = useDietTypes();
+  const { data: medicalChecks = [], isLoading: loadingMedical } = useMedicalChecks();
+
+  const healthyPets = pets.filter((p) => p.health_status === 'Healthy').length;
+  const needsAttention = pets.filter((p) => ['Sick', 'Critical', 'Recovering', 'Under Treatment'].includes(p.health_status || '')).length;
+  const vets = employees.filter((e) => e.role === 'Veterinarian').length;
+  const keepers = employees.filter((e) => e.role === 'Keeper').length;
+
+  const isLoading = loadingPets || loadingEmployees || loadingDietTypes || loadingMedical;
+
+  if (isLoading) {
+    return (
+      <MainLayout title="Dashboard" subtitle="Loading...">
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      </MainLayout>
+    );
+  }
 
   return (
     <MainLayout title="Dashboard" subtitle="Welcome back! Here's what's happening at the zoo.">
@@ -17,30 +37,29 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <StatCard
           title="Total Animals"
-          value={mockPets.length}
+          value={pets.length}
           subtitle={`${healthyPets} healthy`}
           icon={PawPrint}
           variant="mint"
-          trend={{ value: 12, isPositive: true }}
         />
         <StatCard
           title="Staff Members"
-          value={mockEmployees.length}
+          value={employees.length}
           subtitle={`${vets} vets, ${keepers} keepers`}
           icon={Users}
           variant="sky"
         />
         <StatCard
           title="Diet Types"
-          value={mockDietTypes.length}
+          value={dietTypes.length}
           subtitle="Active diet plans"
           icon={UtensilsCrossed}
           variant="yellow"
         />
         <StatCard
           title="Medical Checks"
-          value={mockMedicalChecks.length}
-          subtitle="This month"
+          value={medicalChecks.length}
+          subtitle="Total records"
           icon={Stethoscope}
           variant="default"
         />
@@ -91,7 +110,7 @@ export default function Dashboard() {
                   <span className="text-sm">Recovering</span>
                 </div>
                 <span className="font-semibold">
-                  {mockPets.filter((p) => p.healthStatus === 'Recovering').length}
+                  {pets.filter((p) => p.health_status === 'Recovering').length}
                 </span>
               </div>
               <div className="flex items-center justify-between">
@@ -100,7 +119,7 @@ export default function Dashboard() {
                   <span className="text-sm">Needs Care</span>
                 </div>
                 <span className="font-semibold">
-                  {mockPets.filter((p) => ['Sick', 'Critical'].includes(p.healthStatus)).length}
+                  {pets.filter((p) => ['Sick', 'Critical', 'Under Treatment'].includes(p.health_status || '')).length}
                 </span>
               </div>
             </div>

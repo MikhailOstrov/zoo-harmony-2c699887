@@ -1,7 +1,8 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Employee, EmployeeFormData } from '@/types/zoo';
+import { Database } from '@/integrations/supabase/types';
+import { EmployeeFormData } from '@/hooks/use-employees';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -20,17 +21,18 @@ import {
 } from '@/components/ui/dialog';
 import { format } from 'date-fns';
 
+type Employee = Database['public']['Tables']['employees']['Row'];
+
 const employeeSchema = z.object({
   firstName: z.string().min(1, 'First name is required').max(50),
   lastName: z.string().min(1, 'Last name is required').max(50),
   email: z.string().email('Invalid email address'),
-  phone: z.string().min(10, 'Phone number must be at least 10 digits'),
+  phone: z.string().optional(),
   role: z.enum(['Keeper', 'Veterinarian']),
-  department: z.string().min(1, 'Department is required').max(100),
   hireDate: z.string().refine((date) => new Date(date) <= new Date(), {
     message: 'Hire date cannot be in the future',
   }),
-  salary: z.number().min(0, 'Salary must be positive'),
+  specialization: z.string().optional(),
   spouseId: z.string().optional(),
 });
 
@@ -53,16 +55,23 @@ export function StaffForm({ open, onOpenChange, employee, employees, onSubmit }:
     resolver: zodResolver(employeeSchema),
     defaultValues: employee
       ? {
-          ...employee,
-          hireDate: format(new Date(employee.hireDate), 'yyyy-MM-dd'),
+          firstName: employee.first_name,
+          lastName: employee.last_name,
+          email: employee.email,
+          phone: employee.phone || undefined,
+          role: employee.role,
+          hireDate: employee.hire_date,
+          specialization: employee.specialization || undefined,
+          spouseId: employee.spouse_id || undefined,
         }
       : {
           role: 'Keeper',
+          hireDate: format(new Date(), 'yyyy-MM-dd'),
         },
   });
 
   const availableSpouses = employees.filter(
-    (e) => e.id !== employee?.id && !e.spouseId
+    (e) => e.id !== employee?.id && !e.spouse_id
   );
 
   const handleFormSubmit = (data: EmployeeFormData) => {
@@ -109,11 +118,8 @@ export function StaffForm({ open, onOpenChange, employee, employees, onSubmit }:
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="phone">Phone *</Label>
+              <Label htmlFor="phone">Phone</Label>
               <Input id="phone" {...register('phone')} className="zoo-input" />
-              {errors.phone && (
-                <p className="text-xs text-destructive">{errors.phone.message}</p>
-              )}
             </div>
           </div>
 
@@ -135,16 +141,6 @@ export function StaffForm({ open, onOpenChange, employee, employees, onSubmit }:
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="department">Department *</Label>
-              <Input id="department" {...register('department')} className="zoo-input" />
-              {errors.department && (
-                <p className="text-xs text-destructive">{errors.department.message}</p>
-              )}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
               <Label htmlFor="hireDate">Hire Date *</Label>
               <Input
                 id="hireDate"
@@ -157,26 +153,18 @@ export function StaffForm({ open, onOpenChange, employee, employees, onSubmit }:
                 <p className="text-xs text-destructive">{errors.hireDate.message}</p>
               )}
             </div>
+          </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="salary">Salary *</Label>
-              <Input
-                id="salary"
-                type="number"
-                {...register('salary', { valueAsNumber: true })}
-                className="zoo-input"
-              />
-              {errors.salary && (
-                <p className="text-xs text-destructive">{errors.salary.message}</p>
-              )}
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="specialization">Specialization</Label>
+            <Input id="specialization" {...register('specialization')} className="zoo-input" />
           </div>
 
           {availableSpouses.length > 0 && (
             <div className="space-y-2">
               <Label>Spouse (Optional)</Label>
               <Select
-                defaultValue={employee?.spouseId || ''}
+                defaultValue={employee?.spouse_id || ''}
                 onValueChange={(value) => setValue('spouseId', value || undefined)}
               >
                 <SelectTrigger className="zoo-input">
@@ -186,7 +174,7 @@ export function StaffForm({ open, onOpenChange, employee, employees, onSubmit }:
                   <SelectItem value="">None</SelectItem>
                   {availableSpouses.map((e) => (
                     <SelectItem key={e.id} value={e.id}>
-                      {e.firstName} {e.lastName} ({e.role})
+                      {e.first_name} {e.last_name} ({e.role})
                     </SelectItem>
                   ))}
                 </SelectContent>

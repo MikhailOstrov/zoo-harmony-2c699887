@@ -3,42 +3,54 @@ import { MainLayout } from '@/components/layout/MainLayout';
 import { MedicalRecordCard } from '@/components/medical/MedicalRecordCard';
 import { MedicalCheckForm } from '@/components/medical/MedicalCheckForm';
 import { Button } from '@/components/ui/button';
-import { mockMedicalChecks, mockPets, mockEmployees } from '@/data/mockData';
-import { MedicalCheck, MedicalCheckFormData } from '@/types/zoo';
-import { Plus, Stethoscope } from 'lucide-react';
+import { useMedicalChecks, useAddMedicalCheck, MedicalCheckFormData } from '@/hooks/use-medical';
+import { usePets } from '@/hooks/use-pets';
+import { useEmployees } from '@/hooks/use-employees';
+import { Plus, Stethoscope, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 export default function Medical() {
-  const [records, setRecords] = useState<MedicalCheck[]>(mockMedicalChecks);
+  const { data: records = [], isLoading: loadingRecords } = useMedicalChecks();
+  const { data: pets = [], isLoading: loadingPets } = usePets();
+  const { data: employees = [], isLoading: loadingEmployees } = useEmployees();
+  const addMedicalCheck = useAddMedicalCheck();
+
   const [formOpen, setFormOpen] = useState(false);
   const { toast } = useToast();
 
-  const vets = mockEmployees.filter((e) => e.role === 'Veterinarian');
+  const vets = employees.filter((e) => e.role === 'Veterinarian');
 
-  const getPet = (petId: string) => mockPets.find((p) => p.id === petId);
-  const getVet = (vetId: string) => mockEmployees.find((e) => e.id === vetId);
+  const getPet = (petId: string) => pets.find((p) => p.id === petId);
+  const getVet = (vetId: string | null) => vetId ? employees.find((e) => e.id === vetId) : undefined;
 
-  const handleAddMedicalCheck = (data: MedicalCheckFormData) => {
-    const newRecord: MedicalCheck = {
-      ...data,
-      id: String(Date.now()),
-      checkDate: new Date(data.checkDate),
-      nextCheckDate: data.nextCheckDate ? new Date(data.nextCheckDate) : undefined,
-      createdAt: new Date(),
-    };
-    setRecords([newRecord, ...records]);
-    
-    const pet = getPet(data.petId);
-    toast({
-      title: 'Medical Check Added',
-      description: `Medical check for ${pet?.name || 'pet'} has been recorded.`,
-    });
+  const handleAddMedicalCheck = async (data: MedicalCheckFormData) => {
+    try {
+      await addMedicalCheck.mutateAsync(data);
+      const pet = getPet(data.petId);
+      toast({
+        title: 'Medical Check Added',
+        description: `Medical check for ${pet?.name || 'pet'} has been recorded.`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to add medical check. Please try again.',
+        variant: 'destructive',
+      });
+    }
   };
 
-  // Sort records by date (most recent first)
-  const sortedRecords = [...records].sort(
-    (a, b) => new Date(b.checkDate).getTime() - new Date(a.checkDate).getTime()
-  );
+  const isLoading = loadingRecords || loadingPets || loadingEmployees;
+
+  if (isLoading) {
+    return (
+      <MainLayout title="Medical Records" subtitle="Loading...">
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      </MainLayout>
+    );
+  }
 
   return (
     <MainLayout title="Medical Records" subtitle={`${records.length} medical checks on file`}>
@@ -55,12 +67,12 @@ export default function Medical() {
       </div>
 
       {/* Records Grid */}
-      {sortedRecords.length > 0 ? (
+      {records.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {sortedRecords.map((record) => {
-            const pet = getPet(record.petId);
-            const vet = getVet(record.vetId);
-            if (!pet || !vet) return null;
+          {records.map((record) => {
+            const pet = getPet(record.pet_id);
+            const vet = getVet(record.vet_id);
+            if (!pet) return null;
             return (
               <MedicalRecordCard key={record.id} record={record} pet={pet} vet={vet} />
             );
@@ -84,7 +96,7 @@ export default function Medical() {
       <MedicalCheckForm
         open={formOpen}
         onOpenChange={setFormOpen}
-        pets={mockPets}
+        pets={pets}
         vets={vets}
         onSubmit={handleAddMedicalCheck}
       />

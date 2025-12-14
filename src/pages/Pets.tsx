@@ -4,9 +4,9 @@ import { PetTable } from '@/components/pets/PetTable';
 import { PetCard } from '@/components/pets/PetCard';
 import { PetForm } from '@/components/pets/PetForm';
 import { Button } from '@/components/ui/button';
-import { mockPets } from '@/data/mockData';
-import { Pet, PetFormData } from '@/types/zoo';
-import { Plus, LayoutGrid, List } from 'lucide-react';
+import { usePets, useAddPet, useUpdatePet, useDeletePet, PetFormData } from '@/hooks/use-pets';
+import { Database } from '@/integrations/supabase/types';
+import { Plus, LayoutGrid, List, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   AlertDialog,
@@ -19,58 +19,86 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 
+type Pet = Database['public']['Tables']['pets']['Row'];
+
 export default function Pets() {
-  const [pets, setPets] = useState<Pet[]>(mockPets);
+  const { data: pets = [], isLoading } = usePets();
+  const addPet = useAddPet();
+  const updatePet = useUpdatePet();
+  const deletePet = useDeletePet();
+
   const [view, setView] = useState<'table' | 'grid'>('table');
   const [formOpen, setFormOpen] = useState(false);
   const [editingPet, setEditingPet] = useState<Pet | undefined>();
   const [deletingPet, setDeletingPet] = useState<Pet | undefined>();
   const { toast } = useToast();
 
-  const handleAddPet = (data: PetFormData) => {
-    const newPet: Pet = {
-      ...data,
-      id: String(Date.now()),
-      dateOfBirth: new Date(data.dateOfBirth),
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-    setPets([newPet, ...pets]);
-    toast({
-      title: 'Pet Added',
-      description: `${data.name} has been added to the zoo.`,
-    });
+  const handleAddPet = async (data: PetFormData) => {
+    try {
+      await addPet.mutateAsync(data);
+      toast({
+        title: 'Pet Added',
+        description: `${data.name} has been added to the zoo.`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to add pet. Please try again.',
+        variant: 'destructive',
+      });
+    }
   };
 
-  const handleEditPet = (data: PetFormData) => {
+  const handleEditPet = async (data: PetFormData) => {
     if (!editingPet) return;
-    const updated = pets.map((p) =>
-      p.id === editingPet.id
-        ? { ...p, ...data, dateOfBirth: new Date(data.dateOfBirth), updatedAt: new Date() }
-        : p
-    );
-    setPets(updated);
-    setEditingPet(undefined);
-    toast({
-      title: 'Pet Updated',
-      description: `${data.name}'s information has been updated.`,
-    });
+    try {
+      await updatePet.mutateAsync({ id: editingPet.id, data });
+      setEditingPet(undefined);
+      toast({
+        title: 'Pet Updated',
+        description: `${data.name}'s information has been updated.`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to update pet. Please try again.',
+        variant: 'destructive',
+      });
+    }
   };
 
-  const handleDeletePet = () => {
+  const handleDeletePet = async () => {
     if (!deletingPet) return;
-    setPets(pets.filter((p) => p.id !== deletingPet.id));
-    toast({
-      title: 'Pet Removed',
-      description: `${deletingPet.name} has been removed from the zoo.`,
-    });
-    setDeletingPet(undefined);
+    try {
+      await deletePet.mutateAsync(deletingPet.id);
+      toast({
+        title: 'Pet Removed',
+        description: `${deletingPet.name} has been removed from the zoo.`,
+      });
+      setDeletingPet(undefined);
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to remove pet. Please try again.',
+        variant: 'destructive',
+      });
+    }
   };
 
   const openEdit = (pet: Pet) => {
     setEditingPet(pet);
     setFormOpen(true);
   };
+
+  if (isLoading) {
+    return (
+      <MainLayout title="Pets" subtitle="Loading...">
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      </MainLayout>
+    );
+  }
 
   return (
     <MainLayout title="Pets" subtitle={`Managing ${pets.length} animals in the zoo`}>
