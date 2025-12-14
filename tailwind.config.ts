@@ -13,6 +13,10 @@ export default {
       },
     },
     extend: {
+      fontFamily: {
+        sans: ['Nunito', 'sans-serif'],
+        display: ['Quicksand', 'sans-serif'],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
@@ -57,28 +61,40 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        zoo: {
+          mint: "hsl(var(--zoo-mint))",
+          "mint-dark": "hsl(var(--zoo-mint-dark))",
+          yellow: "hsl(var(--zoo-yellow))",
+          "yellow-dark": "hsl(var(--zoo-yellow-dark))",
+          sky: "hsl(var(--zoo-sky))",
+          "sky-dark": "hsl(var(--zoo-sky-dark))",
+          peach: "hsl(var(--zoo-peach))",
+          lavender: "hsl(var(--zoo-lavender))",
+          coral: "hsl(var(--zoo-coral))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+        xl: "calc(var(--radius) + 4px)",
+        "2xl": "calc(var(--radius) + 8px)",
+        "3xl": "calc(var(--radius) + 16px)",
+      },
+      boxShadow: {
+        'zoo': '0 4px 20px -2px hsl(var(--primary) / 0.15)',
+        'zoo-lg': '0 8px 30px -4px hsl(var(--primary) / 0.2)',
+        'zoo-yellow': '0 4px 20px -2px hsl(var(--zoo-yellow-dark) / 0.2)',
+        'zoo-sky': '0 4px 20px -2px hsl(var(--zoo-sky-dark) / 0.2)',
       },
       keyframes: {
         "accordion-down": {
-          from: {
-            height: "0",
-          },
-          to: {
-            height: "var(--radix-accordion-content-height)",
-          },
+          from: { height: "0" },
+          to: { height: "var(--radix-accordion-content-height)" },
         },
         "accordion-up": {
-          from: {
-            height: "var(--radix-accordion-content-height)",
-          },
-          to: {
-            height: "0",
-          },
+          from: { height: "var(--radix-accordion-content-height)" },
+          to: { height: "0" },
         },
       },
       animation: {
