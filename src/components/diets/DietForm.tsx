@@ -1,7 +1,8 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Diet, DietFormData, Pet, DietType } from '@/types/zoo';
+import { Database } from '@/integrations/supabase/types';
+import { DietFormData } from '@/hooks/use-diets';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -19,16 +20,20 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { format } from 'date-fns';
+
+type Pet = Database['public']['Tables']['pets']['Row'];
+type DietType = Database['public']['Tables']['diet_types']['Row'];
+type Diet = Database['public']['Tables']['diets']['Row'];
 
 const dietSchema = z.object({
   petId: z.string().min(1, 'Pet is required'),
   dietTypeId: z.string().min(1, 'Diet type is required'),
-  startDate: z.string().min(1, 'Start date is required'),
+  foodName: z.string().min(1, 'Food name is required'),
+  quantity: z.string().optional(),
+  feedingTime: z.string().optional(),
+  startDate: z.string().optional(),
   endDate: z.string().optional(),
-  feedingSchedule: z.string().min(1, 'Feeding schedule is required').max(200),
-  quantity: z.string().min(1, 'Quantity is required').max(100),
-  notes: z.string().max(500).optional(),
+  notes: z.string().optional(),
 });
 
 interface DietFormProps {
@@ -51,9 +56,14 @@ export function DietForm({ open, onOpenChange, diet, pets, dietTypes, onSubmit }
     resolver: zodResolver(dietSchema),
     defaultValues: diet
       ? {
-          ...diet,
-          startDate: format(new Date(diet.startDate), 'yyyy-MM-dd'),
-          endDate: diet.endDate ? format(new Date(diet.endDate), 'yyyy-MM-dd') : undefined,
+          petId: diet.pet_id,
+          dietTypeId: diet.diet_type_id,
+          foodName: diet.food_name,
+          quantity: diet.quantity || undefined,
+          feedingTime: diet.feeding_time || undefined,
+          startDate: diet.start_date || undefined,
+          endDate: diet.end_date || undefined,
+          notes: diet.notes || undefined,
         }
       : {},
   });
@@ -78,7 +88,7 @@ export function DietForm({ open, onOpenChange, diet, pets, dietTypes, onSubmit }
             <div className="space-y-2">
               <Label>Pet *</Label>
               <Select
-                defaultValue={diet?.petId}
+                defaultValue={diet?.pet_id}
                 onValueChange={(value) => setValue('petId', value)}
               >
                 <SelectTrigger className="zoo-input">
@@ -100,7 +110,7 @@ export function DietForm({ open, onOpenChange, diet, pets, dietTypes, onSubmit }
             <div className="space-y-2">
               <Label>Diet Type *</Label>
               <Select
-                defaultValue={diet?.dietTypeId}
+                defaultValue={diet?.diet_type_id}
                 onValueChange={(value) => setValue('dietTypeId', value)}
               >
                 <SelectTrigger className="zoo-input">
@@ -109,7 +119,7 @@ export function DietForm({ open, onOpenChange, diet, pets, dietTypes, onSubmit }
                 <SelectContent>
                   {dietTypes.map((type) => (
                     <SelectItem key={type.id} value={type.id}>
-                      {type.name} ({type.category})
+                      {type.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -120,22 +130,54 @@ export function DietForm({ open, onOpenChange, diet, pets, dietTypes, onSubmit }
             </div>
           </div>
 
+          <div className="space-y-2">
+            <Label htmlFor="foodName">Food Name *</Label>
+            <Input
+              id="foodName"
+              {...register('foodName')}
+              className="zoo-input"
+              placeholder="e.g., Raw chicken, Fresh vegetables"
+            />
+            {errors.foodName && (
+              <p className="text-xs text-destructive">{errors.foodName.message}</p>
+            )}
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="startDate">Start Date *</Label>
+              <Label htmlFor="quantity">Quantity</Label>
+              <Input
+                id="quantity"
+                {...register('quantity')}
+                className="zoo-input"
+                placeholder="e.g., 5 kg per day"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="feedingTime">Feeding Time</Label>
+              <Input
+                id="feedingTime"
+                {...register('feedingTime')}
+                className="zoo-input"
+                placeholder="e.g., 8:00 AM, 5:00 PM"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="startDate">Start Date</Label>
               <Input
                 id="startDate"
                 type="date"
                 {...register('startDate')}
                 className="zoo-input"
               />
-              {errors.startDate && (
-                <p className="text-xs text-destructive">{errors.startDate.message}</p>
-              )}
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="endDate">End Date (Optional)</Label>
+              <Label htmlFor="endDate">End Date</Label>
               <Input
                 id="endDate"
                 type="date"
@@ -146,38 +188,12 @@ export function DietForm({ open, onOpenChange, diet, pets, dietTypes, onSubmit }
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="feedingSchedule">Feeding Schedule *</Label>
-            <Input
-              id="feedingSchedule"
-              {...register('feedingSchedule')}
-              className="zoo-input"
-              placeholder="e.g., Twice daily - 8:00 AM and 5:00 PM"
-            />
-            {errors.feedingSchedule && (
-              <p className="text-xs text-destructive">{errors.feedingSchedule.message}</p>
-            )}
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="quantity">Quantity *</Label>
-            <Input
-              id="quantity"
-              {...register('quantity')}
-              className="zoo-input"
-              placeholder="e.g., 5 kg per day"
-            />
-            {errors.quantity && (
-              <p className="text-xs text-destructive">{errors.quantity.message}</p>
-            )}
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="notes">Notes (Optional)</Label>
+            <Label htmlFor="notes">Notes</Label>
             <Textarea
               id="notes"
               {...register('notes')}
               className="zoo-input min-h-[80px]"
-              placeholder="Additional notes about the diet..."
+              placeholder="Additional notes..."
             />
           </div>
 

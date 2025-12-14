@@ -12,9 +12,10 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { mockDietTypes, mockDiets, mockPets } from '@/data/mockData';
-import { DietType, Diet, DietFormData, DietTypeFormData } from '@/types/zoo';
-import { Plus, Edit, Trash2 } from 'lucide-react';
+import { useDietTypes, useDiets, useAddDietType, useAddDiet, useUpdateDiet, useDeleteDiet, useDeleteDietType, DietFormData, DietTypeFormData } from '@/hooks/use-diets';
+import { usePets } from '@/hooks/use-pets';
+import { Database } from '@/integrations/supabase/types';
+import { Plus, Edit, Trash2, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import {
@@ -36,32 +37,34 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+
+type DietType = Database['public']['Tables']['diet_types']['Row'];
+type Diet = Database['public']['Tables']['diets']['Row'];
 
 export default function Diets() {
-  const [dietTypes, setDietTypes] = useState<DietType[]>(mockDietTypes);
-  const [diets, setDiets] = useState<Diet[]>(mockDiets);
+  const { data: dietTypes = [], isLoading: loadingTypes } = useDietTypes();
+  const { data: diets = [], isLoading: loadingDiets } = useDiets();
+  const { data: pets = [] } = usePets();
+  
+  const addDietType = useAddDietType();
+  const addDiet = useAddDiet();
+  const updateDiet = useUpdateDiet();
+  const deleteDiet = useDeleteDiet();
+  const deleteDietType = useDeleteDietType();
+
   const [dietFormOpen, setDietFormOpen] = useState(false);
   const [dietTypeFormOpen, setDietTypeFormOpen] = useState(false);
   const [editingDiet, setEditingDiet] = useState<Diet | undefined>();
-  const [editingDietType, setEditingDietType] = useState<DietType | undefined>();
   const [deletingDietType, setDeletingDietType] = useState<DietType | undefined>();
   const [deletingDiet, setDeletingDiet] = useState<Diet | undefined>();
   const [newDietType, setNewDietType] = useState<DietTypeFormData>({
     name: '',
     description: '',
-    category: 'Omnivore',
   });
   const { toast } = useToast();
 
   const getPetName = (petId: string) => {
-    const pet = mockPets.find((p) => p.id === petId);
+    const pet = pets.find((p) => p.id === petId);
     return pet ? pet.name : 'Unknown';
   };
 
@@ -70,75 +73,106 @@ export default function Diets() {
     return type ? type.name : 'Unknown';
   };
 
-  const handleAddDiet = (data: DietFormData) => {
-    const newDiet: Diet = {
-      ...data,
-      id: String(Date.now()),
-      startDate: new Date(data.startDate),
-      endDate: data.endDate ? new Date(data.endDate) : undefined,
-      createdAt: new Date(),
-    };
-    setDiets([newDiet, ...diets]);
-    toast({
-      title: 'Diet Added',
-      description: 'New diet plan has been created.',
-    });
+  const handleAddDiet = async (data: DietFormData) => {
+    try {
+      await addDiet.mutateAsync(data);
+      toast({
+        title: 'Diet Added',
+        description: 'New diet plan has been created.',
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to add diet. Please try again.',
+        variant: 'destructive',
+      });
+    }
   };
 
-  const handleEditDiet = (data: DietFormData) => {
+  const handleEditDiet = async (data: DietFormData) => {
     if (!editingDiet) return;
-    const updated = diets.map((d) =>
-      d.id === editingDiet.id
-        ? {
-            ...d,
-            ...data,
-            startDate: new Date(data.startDate),
-            endDate: data.endDate ? new Date(data.endDate) : undefined,
-          }
-        : d
-    );
-    setDiets(updated);
-    setEditingDiet(undefined);
-    toast({
-      title: 'Diet Updated',
-      description: 'Diet plan has been updated.',
-    });
+    try {
+      await updateDiet.mutateAsync({ id: editingDiet.id, data });
+      setEditingDiet(undefined);
+      toast({
+        title: 'Diet Updated',
+        description: 'Diet plan has been updated.',
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to update diet. Please try again.',
+        variant: 'destructive',
+      });
+    }
   };
 
-  const handleAddDietType = () => {
-    const newType: DietType = {
-      ...newDietType,
-      id: String(Date.now()),
-      createdAt: new Date(),
-    };
-    setDietTypes([newType, ...dietTypes]);
-    setNewDietType({ name: '', description: '', category: 'Omnivore' });
-    setDietTypeFormOpen(false);
-    toast({
-      title: 'Diet Type Added',
-      description: `${newDietType.name} has been added.`,
-    });
+  const handleAddDietType = async () => {
+    if (!newDietType.name) return;
+    try {
+      await addDietType.mutateAsync(newDietType);
+      setNewDietType({ name: '', description: '' });
+      setDietTypeFormOpen(false);
+      toast({
+        title: 'Diet Type Added',
+        description: `${newDietType.name} has been added.`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to add diet type. Please try again.',
+        variant: 'destructive',
+      });
+    }
   };
 
-  const handleDeleteDietType = () => {
+  const handleDeleteDietType = async () => {
     if (!deletingDietType) return;
-    setDietTypes(dietTypes.filter((t) => t.id !== deletingDietType.id));
-    toast({
-      title: 'Diet Type Removed',
-      description: `${deletingDietType.name} has been removed.`,
-    });
-    setDeletingDietType(undefined);
+    try {
+      await deleteDietType.mutateAsync(deletingDietType.id);
+      toast({
+        title: 'Diet Type Removed',
+        description: `${deletingDietType.name} has been removed.`,
+      });
+      setDeletingDietType(undefined);
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Cannot delete diet type that is in use.',
+        variant: 'destructive',
+      });
+    }
   };
 
-  const handleDeleteDiet = () => {
+  const handleDeleteDiet = async () => {
     if (!deletingDiet) return;
-    setDiets(diets.filter((d) => d.id !== deletingDiet.id));
-    toast({
-      title: 'Diet Removed',
-      description: 'Diet plan has been removed.',
-    });
-    setDeletingDiet(undefined);
+    try {
+      await deleteDiet.mutateAsync(deletingDiet.id);
+      toast({
+        title: 'Diet Removed',
+        description: 'Diet plan has been removed.',
+      });
+      setDeletingDiet(undefined);
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to remove diet. Please try again.',
+        variant: 'destructive',
+      });
+    }
   };
+
+  const isLoading = loadingTypes || loadingDiets;
+
+  if (isLoading) {
+    return (
+      <MainLayout title="Diets" subtitle="Loading...">
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      </MainLayout>
+    );
+  }
 
   return (
     <MainLayout title="Diets" subtitle="Manage diet types and feeding plans">
@@ -168,7 +202,7 @@ export default function Diets() {
                 <TableRow className="bg-muted/50 hover:bg-muted/50">
                   <TableHead className="font-display font-semibold">Pet</TableHead>
                   <TableHead className="font-display font-semibold">Diet Type</TableHead>
-                  <TableHead className="font-display font-semibold">Schedule</TableHead>
+                  <TableHead className="font-display font-semibold">Food</TableHead>
                   <TableHead className="font-display font-semibold">Quantity</TableHead>
                   <TableHead className="font-display font-semibold">Start Date</TableHead>
                   <TableHead className="font-display font-semibold text-right">Actions</TableHead>
@@ -177,13 +211,13 @@ export default function Diets() {
               <TableBody>
                 {diets.map((diet) => (
                   <TableRow key={diet.id} className="group">
-                    <TableCell className="font-medium">{getPetName(diet.petId)}</TableCell>
+                    <TableCell className="font-medium">{getPetName(diet.pet_id)}</TableCell>
                     <TableCell>
-                      <span className="zoo-badge-mint text-xs">{getDietTypeName(diet.dietTypeId)}</span>
+                      <span className="zoo-badge-mint text-xs">{getDietTypeName(diet.diet_type_id)}</span>
                     </TableCell>
-                    <TableCell>{diet.feedingSchedule}</TableCell>
-                    <TableCell>{diet.quantity}</TableCell>
-                    <TableCell>{format(new Date(diet.startDate), 'MMM d, yyyy')}</TableCell>
+                    <TableCell>{diet.food_name}</TableCell>
+                    <TableCell>{diet.quantity || '-'}</TableCell>
+                    <TableCell>{diet.start_date ? format(new Date(diet.start_date), 'MMM d, yyyy') : '-'}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <Button
@@ -221,15 +255,6 @@ export default function Diets() {
               <DietTypeCard
                 key={type.id}
                 dietType={type}
-                onEdit={(t) => {
-                  setEditingDietType(t);
-                  setNewDietType({
-                    name: t.name,
-                    description: t.description,
-                    category: t.category,
-                  });
-                  setDietTypeFormOpen(true);
-                }}
                 onDelete={setDeletingDietType}
               />
             ))}
@@ -245,7 +270,7 @@ export default function Diets() {
           if (!open) setEditingDiet(undefined);
         }}
         diet={editingDiet}
-        pets={mockPets}
+        pets={pets}
         dietTypes={dietTypes}
         onSubmit={editingDiet ? handleEditDiet : handleAddDiet}
       />
@@ -254,9 +279,7 @@ export default function Diets() {
       <Dialog open={dietTypeFormOpen} onOpenChange={setDietTypeFormOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle className="font-display text-xl">
-              {editingDietType ? 'Edit Diet Type' : 'Add Diet Type'}
-            </DialogTitle>
+            <DialogTitle className="font-display text-xl">Add Diet Type</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
@@ -269,32 +292,10 @@ export default function Diets() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Category *</Label>
-              <Select
-                value={newDietType.category}
-                onValueChange={(value) =>
-                  setNewDietType({
-                    ...newDietType,
-                    category: value as 'Carnivore' | 'Herbivore' | 'Omnivore' | 'Insectivore',
-                  })
-                }
-              >
-                <SelectTrigger className="zoo-input">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Carnivore">Carnivore</SelectItem>
-                  <SelectItem value="Herbivore">Herbivore</SelectItem>
-                  <SelectItem value="Omnivore">Omnivore</SelectItem>
-                  <SelectItem value="Insectivore">Insectivore</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="typeDescription">Description *</Label>
+              <Label htmlFor="typeDescription">Description</Label>
               <Textarea
                 id="typeDescription"
-                value={newDietType.description}
+                value={newDietType.description || ''}
                 onChange={(e) => setNewDietType({ ...newDietType, description: e.target.value })}
                 className="zoo-input min-h-[80px]"
               />
@@ -303,8 +304,8 @@ export default function Diets() {
               <Button variant="outline" onClick={() => setDietTypeFormOpen(false)}>
                 Cancel
               </Button>
-              <Button variant="mint" onClick={handleAddDietType}>
-                {editingDietType ? 'Save Changes' : 'Add Diet Type'}
+              <Button variant="mint" onClick={handleAddDietType} disabled={!newDietType.name}>
+                Add Diet Type
               </Button>
             </div>
           </div>

@@ -4,9 +4,9 @@ import { StaffCard } from '@/components/staff/StaffCard';
 import { StaffForm } from '@/components/staff/StaffForm';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { mockEmployees } from '@/data/mockData';
-import { Employee, EmployeeFormData } from '@/types/zoo';
-import { Plus, Stethoscope, User } from 'lucide-react';
+import { useEmployees, useAddEmployee, useUpdateEmployee, useDeleteEmployee, EmployeeFormData } from '@/hooks/use-employees';
+import { Database } from '@/integrations/supabase/types';
+import { Plus, Stethoscope, User, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   AlertDialog,
@@ -19,8 +19,14 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 
+type Employee = Database['public']['Tables']['employees']['Row'];
+
 export default function Staff() {
-  const [employees, setEmployees] = useState<Employee[]>(mockEmployees);
+  const { data: employees = [], isLoading } = useEmployees();
+  const addEmployee = useAddEmployee();
+  const updateEmployee = useUpdateEmployee();
+  const deleteEmployee = useDeleteEmployee();
+
   const [formOpen, setFormOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | undefined>();
   const [deletingEmployee, setDeletingEmployee] = useState<Employee | undefined>();
@@ -30,74 +36,93 @@ export default function Staff() {
   const vets = employees.filter((e) => e.role === 'Veterinarian');
 
   const getSpouse = (employee: Employee) => {
-    if (!employee.spouseId) return undefined;
-    return employees.find((e) => e.id === employee.spouseId);
+    if (!employee.spouse_id) return undefined;
+    return employees.find((e) => e.id === employee.spouse_id);
   };
 
-  const handleAddEmployee = (data: EmployeeFormData) => {
-    const newEmployee: Employee = {
-      ...data,
-      id: String(Date.now()),
-      hireDate: new Date(data.hireDate),
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-    
-    // If spouse selected, update spouse's record too
-    if (data.spouseId) {
-      setEmployees((prev) =>
-        prev.map((e) =>
-          e.id === data.spouseId ? { ...e, spouseId: newEmployee.id } : e
-        )
-      );
+  const handleAddEmployee = async (data: EmployeeFormData) => {
+    try {
+      const newId = await addEmployee.mutateAsync(data);
+      
+      // If spouse selected, update spouse's record too
+      if (data.spouseId && newId) {
+        await updateEmployee.mutateAsync({
+          id: data.spouseId,
+          data: { spouseId: newId },
+        });
+      }
+      
+      toast({
+        title: 'Employee Added',
+        description: `${data.firstName} ${data.lastName} has joined the team.`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to add employee. Please try again.',
+        variant: 'destructive',
+      });
     }
-    
-    setEmployees((prev) => [newEmployee, ...prev]);
-    toast({
-      title: 'Employee Added',
-      description: `${data.firstName} ${data.lastName} has joined the team.`,
-    });
   };
 
-  const handleEditEmployee = (data: EmployeeFormData) => {
+  const handleEditEmployee = async (data: EmployeeFormData) => {
     if (!editingEmployee) return;
-    const updated = employees.map((e) =>
-      e.id === editingEmployee.id
-        ? { ...e, ...data, hireDate: new Date(data.hireDate), updatedAt: new Date() }
-        : e
-    );
-    setEmployees(updated);
-    setEditingEmployee(undefined);
-    toast({
-      title: 'Employee Updated',
-      description: `${data.firstName} ${data.lastName}'s information has been updated.`,
-    });
+    try {
+      await updateEmployee.mutateAsync({ id: editingEmployee.id, data });
+      setEditingEmployee(undefined);
+      toast({
+        title: 'Employee Updated',
+        description: `${data.firstName} ${data.lastName}'s information has been updated.`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to update employee. Please try again.',
+        variant: 'destructive',
+      });
+    }
   };
 
-  const handleDeleteEmployee = () => {
+  const handleDeleteEmployee = async () => {
     if (!deletingEmployee) return;
-    
-    // Remove spouse link if exists
-    if (deletingEmployee.spouseId) {
-      setEmployees((prev) =>
-        prev.map((e) =>
-          e.id === deletingEmployee.spouseId ? { ...e, spouseId: undefined } : e
-        )
-      );
+    try {
+      // Remove spouse link if exists
+      if (deletingEmployee.spouse_id) {
+        await updateEmployee.mutateAsync({
+          id: deletingEmployee.spouse_id,
+          data: { spouseId: undefined },
+        });
+      }
+      
+      await deleteEmployee.mutateAsync(deletingEmployee.id);
+      toast({
+        title: 'Employee Removed',
+        description: `${deletingEmployee.first_name} ${deletingEmployee.last_name} has been removed.`,
+      });
+      setDeletingEmployee(undefined);
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to remove employee. Please try again.',
+        variant: 'destructive',
+      });
     }
-    
-    setEmployees((prev) => prev.filter((e) => e.id !== deletingEmployee.id));
-    toast({
-      title: 'Employee Removed',
-      description: `${deletingEmployee.firstName} ${deletingEmployee.lastName} has been removed.`,
-    });
-    setDeletingEmployee(undefined);
   };
 
   const openEdit = (employee: Employee) => {
     setEditingEmployee(employee);
     setFormOpen(true);
   };
+
+  if (isLoading) {
+    return (
+      <MainLayout title="Staff" subtitle="Loading...">
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      </MainLayout>
+    );
+  }
 
   return (
     <MainLayout title="Staff" subtitle={`Managing ${employees.length} team members`}>
@@ -185,7 +210,7 @@ export default function Staff() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              Remove {deletingEmployee?.firstName} {deletingEmployee?.lastName}?
+              Remove {deletingEmployee?.first_name} {deletingEmployee?.last_name}?
             </AlertDialogTitle>
             <AlertDialogDescription>
               This action cannot be undone. This will permanently remove this

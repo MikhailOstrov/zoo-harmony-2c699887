@@ -1,7 +1,8 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Pet, PetFormData } from '@/types/zoo';
+import { Database } from '@/integrations/supabase/types';
+import { PetFormData } from '@/hooks/use-pets';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -20,21 +21,21 @@ import {
 } from '@/components/ui/dialog';
 import { format } from 'date-fns';
 
+type Pet = Database['public']['Tables']['pets']['Row'];
+
 const petSchema = z.object({
   name: z.string().min(1, 'Name is required').max(100),
   species: z.string().min(1, 'Species is required').max(100),
-  breed: z.string().max(100).optional(),
-  dateOfBirth: z.string().refine((date) => new Date(date) <= new Date(), {
-    message: 'Date of birth cannot be in the future',
-  }),
-  gender: z.enum(['Male', 'Female']),
-  habitat: z.string().min(1, 'Habitat is required').max(200),
-  healthStatus: z.enum(['Healthy', 'Sick', 'Critical', 'Recovering']),
-  type: z.enum(['Regular', 'MigratoryBird', 'Reptile']),
-  winteringLocation: z.string().max(200).optional(),
-  migrationSeason: z.string().max(100).optional(),
-  hibernationPeriod: z.string().max(100).optional(),
-  hibernationTemperature: z.number().min(-10).max(40).optional(),
+  speciesType: z.enum(['Mammal', 'Bird', 'Reptile', 'Amphibian', 'Fish', 'Invertebrate']),
+  dateOfBirth: z.string().optional(),
+  gender: z.string().optional(),
+  weight: z.number().optional(),
+  healthStatus: z.enum(['Healthy', 'Sick', 'Under Treatment', 'Recovering', 'Critical']).optional(),
+  enclosure: z.string().optional(),
+  winteringLocation: z.string().optional(),
+  hibernationStart: z.string().optional(),
+  hibernationEnd: z.string().optional(),
+  notes: z.string().optional(),
 });
 
 interface PetFormProps {
@@ -56,17 +57,27 @@ export function PetForm({ open, onOpenChange, pet, onSubmit }: PetFormProps) {
     resolver: zodResolver(petSchema),
     defaultValues: pet
       ? {
-          ...pet,
-          dateOfBirth: format(new Date(pet.dateOfBirth), 'yyyy-MM-dd'),
+          name: pet.name,
+          species: pet.species,
+          speciesType: pet.species_type,
+          dateOfBirth: pet.date_of_birth || undefined,
+          gender: pet.gender || undefined,
+          weight: pet.weight || undefined,
+          healthStatus: pet.health_status || 'Healthy',
+          enclosure: pet.enclosure || undefined,
+          winteringLocation: pet.wintering_location || undefined,
+          hibernationStart: pet.hibernation_start || undefined,
+          hibernationEnd: pet.hibernation_end || undefined,
+          notes: pet.notes || undefined,
         }
       : {
-          type: 'Regular',
-          gender: 'Male',
+          speciesType: 'Mammal',
+          gender: 'Unknown',
           healthStatus: 'Healthy',
         },
   });
 
-  const petType = watch('type');
+  const speciesType = watch('speciesType');
 
   const handleFormSubmit = (data: PetFormData) => {
     onSubmit(data);
@@ -104,12 +115,27 @@ export function PetForm({ open, onOpenChange, pet, onSubmit }: PetFormProps) {
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="breed">Breed</Label>
-              <Input id="breed" {...register('breed')} className="zoo-input" />
+              <Label>Species Type *</Label>
+              <Select
+                defaultValue={pet?.species_type || 'Mammal'}
+                onValueChange={(value) => setValue('speciesType', value as any)}
+              >
+                <SelectTrigger className="zoo-input">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Mammal">Mammal</SelectItem>
+                  <SelectItem value="Bird">Bird</SelectItem>
+                  <SelectItem value="Reptile">Reptile</SelectItem>
+                  <SelectItem value="Amphibian">Amphibian</SelectItem>
+                  <SelectItem value="Fish">Fish</SelectItem>
+                  <SelectItem value="Invertebrate">Invertebrate</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="dateOfBirth">Date of Birth *</Label>
+              <Label htmlFor="dateOfBirth">Date of Birth</Label>
               <Input
                 id="dateOfBirth"
                 type="date"
@@ -117,18 +143,15 @@ export function PetForm({ open, onOpenChange, pet, onSubmit }: PetFormProps) {
                 {...register('dateOfBirth')}
                 className="zoo-input"
               />
-              {errors.dateOfBirth && (
-                <p className="text-xs text-destructive">{errors.dateOfBirth.message}</p>
-              )}
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Gender *</Label>
+              <Label>Gender</Label>
               <Select
-                defaultValue={pet?.gender || 'Male'}
-                onValueChange={(value) => setValue('gender', value as 'Male' | 'Female')}
+                defaultValue={pet?.gender || 'Unknown'}
+                onValueChange={(value) => setValue('gender', value)}
               >
                 <SelectTrigger className="zoo-input">
                   <SelectValue />
@@ -136,46 +159,16 @@ export function PetForm({ open, onOpenChange, pet, onSubmit }: PetFormProps) {
                 <SelectContent>
                   <SelectItem value="Male">Male</SelectItem>
                   <SelectItem value="Female">Female</SelectItem>
+                  <SelectItem value="Unknown">Unknown</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div className="space-y-2">
-              <Label>Type *</Label>
+              <Label>Health Status</Label>
               <Select
-                defaultValue={pet?.type || 'Regular'}
-                onValueChange={(value) =>
-                  setValue('type', value as 'Regular' | 'MigratoryBird' | 'Reptile')
-                }
-              >
-                <SelectTrigger className="zoo-input">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Regular">Regular</SelectItem>
-                  <SelectItem value="MigratoryBird">Migratory Bird</SelectItem>
-                  <SelectItem value="Reptile">Reptile</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="habitat">Habitat *</Label>
-              <Input id="habitat" {...register('habitat')} className="zoo-input" />
-              {errors.habitat && (
-                <p className="text-xs text-destructive">{errors.habitat.message}</p>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label>Health Status *</Label>
-              <Select
-                defaultValue={pet?.healthStatus || 'Healthy'}
-                onValueChange={(value) =>
-                  setValue('healthStatus', value as 'Healthy' | 'Sick' | 'Critical' | 'Recovering')
-                }
+                defaultValue={pet?.health_status || 'Healthy'}
+                onValueChange={(value) => setValue('healthStatus', value as any)}
               >
                 <SelectTrigger className="zoo-input">
                   <SelectValue />
@@ -184,58 +177,66 @@ export function PetForm({ open, onOpenChange, pet, onSubmit }: PetFormProps) {
                   <SelectItem value="Healthy">Healthy</SelectItem>
                   <SelectItem value="Recovering">Recovering</SelectItem>
                   <SelectItem value="Sick">Sick</SelectItem>
+                  <SelectItem value="Under Treatment">Under Treatment</SelectItem>
                   <SelectItem value="Critical">Critical</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
 
-          {/* Migratory Bird Fields */}
-          {petType === 'MigratoryBird' && (
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="enclosure">Enclosure</Label>
+              <Input id="enclosure" {...register('enclosure')} className="zoo-input" />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="weight">Weight (kg)</Label>
+              <Input
+                id="weight"
+                type="number"
+                step="0.01"
+                {...register('weight', { valueAsNumber: true })}
+                className="zoo-input"
+              />
+            </div>
+          </div>
+
+          {/* Bird Fields */}
+          {speciesType === 'Bird' && (
             <div className="p-4 rounded-xl bg-zoo-sky/30 space-y-4">
               <p className="text-sm font-medium text-zoo-sky-dark">Migration Details</p>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="winteringLocation">Wintering Location</Label>
-                  <Input
-                    id="winteringLocation"
-                    {...register('winteringLocation')}
-                    className="zoo-input"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="migrationSeason">Migration Season</Label>
-                  <Input
-                    id="migrationSeason"
-                    {...register('migrationSeason')}
-                    className="zoo-input"
-                    placeholder="e.g., October - March"
-                  />
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="winteringLocation">Wintering Location</Label>
+                <Input
+                  id="winteringLocation"
+                  {...register('winteringLocation')}
+                  className="zoo-input"
+                />
               </div>
             </div>
           )}
 
           {/* Reptile Fields */}
-          {petType === 'Reptile' && (
+          {speciesType === 'Reptile' && (
             <div className="p-4 rounded-xl bg-zoo-yellow/30 space-y-4">
               <p className="text-sm font-medium text-zoo-yellow-dark">Hibernation Details</p>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="hibernationPeriod">Hibernation Period</Label>
+                  <Label htmlFor="hibernationStart">Start Date</Label>
                   <Input
-                    id="hibernationPeriod"
-                    {...register('hibernationPeriod')}
+                    id="hibernationStart"
+                    type="date"
+                    {...register('hibernationStart')}
                     className="zoo-input"
-                    placeholder="e.g., December - February"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="hibernationTemperature">Temperature (°C)</Label>
+                  <Label htmlFor="hibernationEnd">End Date</Label>
                   <Input
-                    id="hibernationTemperature"
-                    type="number"
-                    {...register('hibernationTemperature', { valueAsNumber: true })}
+                    id="hibernationEnd"
+                    type="date"
+                    {...register('hibernationEnd')}
                     className="zoo-input"
                   />
                 </div>

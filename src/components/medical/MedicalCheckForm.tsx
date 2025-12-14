@@ -1,7 +1,8 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { MedicalCheckFormData, Pet, Employee } from '@/types/zoo';
+import { Database } from '@/integrations/supabase/types';
+import { MedicalCheckFormData } from '@/hooks/use-medical';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -21,17 +22,19 @@ import {
 } from '@/components/ui/dialog';
 import { format } from 'date-fns';
 
+type Pet = Database['public']['Tables']['pets']['Row'];
+type Employee = Database['public']['Tables']['employees']['Row'];
+
 const medicalCheckSchema = z.object({
   petId: z.string().min(1, 'Pet is required'),
   vetId: z.string().min(1, 'Veterinarian is required'),
   checkDate: z.string().refine((date) => new Date(date) <= new Date(), {
     message: 'Check date cannot be in the future',
   }),
-  diagnosis: z.string().min(1, 'Diagnosis is required').max(500),
-  treatment: z.string().max(500).optional(),
-  medications: z.string().max(300).optional(),
+  diagnosis: z.string().optional(),
+  treatment: z.string().optional(),
+  notes: z.string().optional(),
   nextCheckDate: z.string().optional(),
-  notes: z.string().max(500).optional(),
 });
 
 interface MedicalCheckFormProps {
@@ -99,7 +102,7 @@ export function MedicalCheckForm({ open, onOpenChange, pets, vets, onSubmit }: M
                 <SelectContent>
                   {vets.map((vet) => (
                     <SelectItem key={vet.id} value={vet.id}>
-                      Dr. {vet.firstName} {vet.lastName}
+                      Dr. {vet.first_name} {vet.last_name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -137,16 +140,13 @@ export function MedicalCheckForm({ open, onOpenChange, pets, vets, onSubmit }: M
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="diagnosis">Diagnosis *</Label>
+            <Label htmlFor="diagnosis">Diagnosis</Label>
             <Textarea
               id="diagnosis"
               {...register('diagnosis')}
               className="zoo-input min-h-[80px]"
               placeholder="Enter diagnosis..."
             />
-            {errors.diagnosis && (
-              <p className="text-xs text-destructive">{errors.diagnosis.message}</p>
-            )}
           </div>
 
           <div className="space-y-2">
@@ -156,16 +156,6 @@ export function MedicalCheckForm({ open, onOpenChange, pets, vets, onSubmit }: M
               {...register('treatment')}
               className="zoo-input min-h-[60px]"
               placeholder="Enter treatment details..."
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="medications">Medications</Label>
-            <Input
-              id="medications"
-              {...register('medications')}
-              className="zoo-input"
-              placeholder="e.g., Amoxicillin 500mg twice daily"
             />
           </div>
 
